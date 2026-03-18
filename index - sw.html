@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scheduled Waste</title>
+    <style>
+        :root {
+            --primary-bg: #f0f4f8;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --accent-color: #0984e3;
+            --danger-color: #ff7675;
+            --safe-color: #20bf6b;
+            --text-dark: #2d3436;
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            display: flex; flex-direction: column; align-items: center; 
+            min-height: 100vh; margin: 0; padding: 20px; color: var(--text-dark);
+        }
+
+        .header-container {
+            background: var(--card-bg); padding: 25px; border-radius: 24px;
+            box-shadow: var(--shadow); backdrop-filter: blur(10px);
+            width: 100%; max-width: 600px; margin-bottom: 30px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        #instruction { font-size: 1rem; font-weight: 700; color: var(--accent-color); margin-bottom: 20px; text-align: center; height: 24px; }
+        .controls-row { display: flex; align-items: center; gap: 40px; }
+
+        #dice {
+            width: 70px; height: 70px; background: #fff; border-radius: 15px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; font-weight: 800; margin-bottom: 10px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1); color: var(--accent-color);
+        }
+        .rolling { animation: roll 0.1s infinite; }
+        @keyframes roll { 0% { transform: rotate(0); } 50% { transform: rotate(5deg); } 100% { transform: rotate(-5deg); } }
+
+        .card-stack {
+            width: 80px; height: 110px; background: #2d3436; border-radius: 12px;
+            border: 3px solid #fff; cursor: pointer; display: flex; 
+            align-items: center; justify-content: center; transition: 0.3s;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+        .card-stack.disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
+        .deck-label { color: white; font-size: 0.7rem; font-weight: 900; line-height: 1.2; text-align: center;}
+
+        .section-title { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: #2d3436; margin-bottom: 10px; }
+        #token-generator {
+            min-height: 70px; display: flex; gap: 10px; justify-content: center; align-items: center;
+            margin-bottom: 30px; padding: 10px; border: 2px dashed rgba(0,0,0,0.1); 
+            border-radius: 20px; width: 450px; background: rgba(255,255,255,0.4);
+        }
+
+        .game-world { display: flex; gap: 20px; justify-content: center; width: 100%; max-width: 1250px; }
+        .grid-container { display: grid; grid-template-columns: repeat(3, 220px); gap: 15px; }
+        .grid {
+            width: 220px; height: 170px; background: var(--card-bg); border-radius: 20px;
+            position: relative; display: flex; flex-wrap: wrap; padding: 45px 12px 12px;
+            box-sizing: border-box; box-shadow: var(--shadow); border: 2px solid transparent;
+        }
+        .grid.target-highlight { border-color: var(--danger-color); background: #fff9f9; transform: scale(1.02); }
+        .location-name { position: absolute; top: 12px; left: 12px; font-size: 0.7rem; font-weight: 700; background: #f1f2f6; padding: 3px 8px; border-radius: 6px; }
+
+        .side-area { display: flex; flex-direction: column; gap: 20px; }
+        .storage-box, .disposal-box {
+            width: 160px; min-height: 180px; max-height: 300px;
+            border-radius: 20px; padding: 15px;
+            display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px;
+            overflow-y: auto;
+        }
+        .storage-box { border: 3px dashed #b2bec3; background: rgba(255,255,255,0.5); }
+        .disposal-box { border: 3px dashed var(--safe-color); background: rgba(32, 191, 107, 0.1); }
+
+        .token { width: 30px; height: 30px; border-radius: 8px; cursor: grab; border: 2px solid rgba(255,255,255,0.5); }
+        
+        .overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:none; z-index:1000; }
+        .active-card {
+            position: fixed; top:50%; left:50%; transform: translate(-50%, -50%);
+            width: 480px; background: white; border-radius: 15px; padding: 35px;
+            display: none; flex-direction: column; align-items: center; z-index: 1001; text-align: center;
+            border-top: 10px solid var(--accent-color);
+        }
+        .active-card.show { display: flex; }
+        .impact-badge { position: absolute; top: 15px; right: 15px; display: flex; flex-direction: column; gap: 5px; align-items: center; }
+        .status-circle { width: 55px; height: 55px; border-radius: 50%; background: #5da0d6; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid white; }
+        .hammer-svg { width: 25px; height: 25px; fill: white; }
+        .arrow-icon { font-size: 22px; font-weight: 900; }
+        .impact-text { font-size: 10px; font-weight: 900; }
+        
+        button { padding: 10px 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: 700; cursor: pointer; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #c-action { white-space: pre-line; text-align: left; }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <div id="instruction">Roll the dice to begin</div>
+        <div class="controls-row">
+            <div style="text-align: center;">
+                <div id="dice">?</div>
+                <button id="rollBtn" onclick="handleRoll()">ROLL DICE</button>
+            </div>
+            <div class="deck-box">
+                <div id="eventDeck" class="card-stack disabled" onclick="handleDrawCard()">
+                    <div class="deck-label">EVENT<br>CARDS</div>
+                </div>
+                <div id="deck-status" style="font-size: 0.6rem; margin-top: 5px; font-weight: bold;">LOCKED</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="active-card" id="card-modal">
+        <div class="impact-badge" id="badge-area"></div>
+        <div style="font-size: 1.2rem; text-decoration: underline; font-weight: 700; margin-bottom: 10px;" id="c-cat">Category</div>
+        <h1 style="font-size: 2rem; margin: 0;" id="c-title">Title</h1>
+        <p style="font-style: italic; margin-bottom: 20px;" id="c-sub">Subtitle</p>
+        <div style="text-align: left; background: #f8f9fa; padding: 15px; border-radius: 10px; width: 100%;" id="c-action">Actions</div>
+        <button onclick="applyCardAndClose()" style="width: 100%; margin-top: 20px;">ACKNOWLEDGE & APPLY</button>
+    </div>
+
+    <div class="section-title">New Batch Delivery</div>
+    <div id="token-generator" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+
+    <div class="game-world">
+        <div class="grid-container">
+            <div id="grid-1" class="grid" ondrop="drop(event)" ondragover="allowDrop(event)"><span class="location-name">Office (Grid 1) - Black (SW 417)</span></div>
+            <div id="grid-2" class="grid" ondrop="drop(event)" ondragover="allowDrop(event)"><span class="location-name">Laboratory (Grid 2) - Yellow (SW 109)</span></div>
+            <div id="grid-3" class="grid" ondrop="drop(event)" ondragover="allowDrop(event)"><span class="location-name">Laboratory (Grid 3) - Red (SW 402)</span></div>
+            <div id="grid-4" class="grid" ondrop="drop(event)" ondragover="allowDrop(event)"><span class="location-name">Laboratory (Grid 4) - Green (SW 206)</span></div>
+            <div id="grid-5" class="grid" ondrop="drop(event)" ondragover="allowDrop(event)"><span class="location-name">Maintenance & Workshop (Grid 5) - Pink (SW 306)</span></div>
+            <div id="grid-6" class="grid" ondrop="drop(event)" ondragover="allowDrop(event)"><span class="location-name">Production & Warehouse (Grid 6) - Blue (SW 410)</span></div>
+        </div>
+
+        <div class="side-area">
+            <div>
+                <div class="section-title">Storage Area</div>
+                <div id="storage" class="storage-box" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                <div id="storage-count" style="font-weight: 800; font-size: 0.8rem;">Total: 0</div>
+            </div>
+            <div>
+                <div class="section-title" style="color: var(--safe-color);">Disposal Area</div>
+                <div id="disposal" class="disposal-box"></div>
+                <div id="disposal-count" style="font-weight: 800; font-size: 0.8rem; color: var(--safe-color);">Saved: 0</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const colors = { 1: "#2d3436", 2: "#eded47", 3: "#fc0000", 4: "#00ff77", 5: "#ffb8ff", 6: "#008cff" };
+        const eventCards = [
+            { cat: 'Abnormal', title: 'Fume Emission', sub: '(Chemical Container Not Enclosed Properly)', action: '• Each waste increase 1T\n• Player have to repeat previous drawn', impact: 'UP' },
+            { cat: 'Abnormal', title: 'Leakage of SW container', sub: '', action: '• Each waste increase 1T', impact: 'UP' },
+            { cat: 'Emergency', title: 'Electricity Breakdown', sub: '', action: '• Each waste increase 1T\n• Counter by “Smart Electric System Controller”', impact: 'UP' },
+            { cat: 'Emergency', title: 'Spillage/Accidental Discharge', sub: '', action: '• Each waste increase 1T\n• If “Spillage Control Kit” used, only SW 410 (Grid 6) +1T', impact: 'UP' },
+            { cat: 'Emergency', title: 'Explosion', sub: '', action: '• Each waste increase 1T\n• If “Fire Extinguisher” used, only SW 410 (Grid 6) +1T', impact: 'UP' },
+            { cat: 'Operational Control', title: 'Overall Efficiency Improvement', sub: '', action: '• SW 410 & SW 417 (Grid 6 & 1) each reduce 1T', impact: 'DOWN' },
+            { cat: 'Operational Control', title: 'Better Efficiency Machine', sub: '', action: '• SW 417 & SW 306 (Grid 1 & 5) each reduce 1T', impact: 'DOWN' },
+            { cat: 'Tools', title: 'Spillage Control Kit', sub: '', action: '• Remove 1 random token to Disposal Area', impact: 'TOOL' },
+            { cat: 'Tools', title: 'Fire Extinguisher', sub: '', action: '• Each facility reduces 1T (Disposal)', impact: 'TOOL' },
+            { cat: 'Tools', title: 'Smart Electric System Controller', sub: '', action: '• Each facility reduces 1T (Disposal)', impact: 'TOOL' }
+        ];
+
+        let currentCard = null;
+        let gamePhase = 1; let selectedId = null; let tokenSeq = 0;
+        const deckEl = document.getElementById('eventDeck');
+        const rollBtn = document.getElementById('rollBtn');
+        const diceEl = document.getElementById('dice');
+        const instructionEl = document.getElementById('instruction');
+
+        function handleRoll() {
+            rollBtn.disabled = true; 
+            diceEl.classList.add('rolling');
+            let rollInterval = setInterval(() => { diceEl.innerText = Math.floor(Math.random() * 6) + 1; }, 80);
+            
+            setTimeout(() => {
+                clearInterval(rollInterval); 
+                diceEl.classList.remove('rolling');
+                const res = parseInt(diceEl.innerText);
+                
+                try {
+                    if (gamePhase === 1) {
+                        selectedId = res;
+                        document.querySelectorAll('.grid').forEach(g => g.classList.remove('target-highlight'));
+                        const target = document.getElementById(`grid-${res}`);
+                        if(target) {
+                            target.classList.add('target-highlight');
+                            const locName = target.querySelector('.location-name').innerText;
+                            instructionEl.innerText = `Target Set: ${locName}. Roll again to add tokens!`;
+                            instructionEl.style.color = "#0984e3";
+                            gamePhase = 2; 
+                        }
+                    } else {
+                        generateTokens(res);
+                        instructionEl.innerText = `DEPLOY ${res} UNITS TO RED FACILITY`;
+                        instructionEl.style.color = "#2d3436";
+                        gamePhase = 1; 
+                    }
+                } catch(e) { console.error(e); }
+                finally { rollBtn.disabled = false; }
+            }, 800);
+        }
+
+        function generateTokens(count) {
+            const gen = document.getElementById('token-generator');
+            gen.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                tokenSeq++;
+                const t = document.createElement('div');
+                t.className = 'token'; t.id = 'token-' + tokenSeq; t.draggable = true;
+                t.style.backgroundColor = colors[selectedId]; t.ondragstart = (e) => e.dataTransfer.setData("text", e.target.id);
+                gen.appendChild(t);
+            }
+            lockDeck();
+        }
+
+        function allowDrop(ev) { ev.preventDefault(); }
+        function drop(ev) {
+            ev.preventDefault();
+            const id = ev.dataTransfer.getData("text");
+            const el = document.getElementById(id);
+            if(!el) return;
+            let target = ev.target;
+            while (target && !target.classList.contains('grid') && !target.classList.contains('storage-box')) target = target.parentElement;
+            if (!target) return;
+
+            if (el.parentElement.id === "token-generator") {
+                if (target.id === `grid-${selectedId}`) {
+                    if (target.querySelectorAll('.token').length >= 2) {
+                        alert("Facility Full! Move to Storage Area."); return;
+                    }
+                    target.appendChild(el);
+                } else if (target.id === "storage") { target.appendChild(el); }
+                else { alert("Wrong target!"); return; }
+            } else if (el.parentElement.classList.contains('grid') && target.id === "storage") {
+                target.appendChild(el);
+            }
+            updateCounts();
+            checkCompletion(); // 关键：每次放下都检查是否完成
+        }
+
+        function checkCompletion() {
+            const generator = document.getElementById('token-generator');
+            if (generator.children.length === 0 && tokenSeq > 0) {
+                unlockDeck();
+            }
+        }
+
+        function lockDeck() { deckEl.classList.add('disabled'); document.getElementById('deck-status').innerText = "LOCKED"; }
+        function unlockDeck() { 
+            deckEl.classList.remove('disabled'); 
+            document.getElementById('deck-status').innerText = "READY"; 
+            instructionEl.innerText = "PHASE COMPLETE: DRAW EVENT CARD";
+        }
+
+        function handleDrawCard() {
+            if (deckEl.classList.contains('disabled')) return;
+            currentCard = eventCards[Math.floor(Math.random() * eventCards.length)];
+            document.getElementById('c-cat').innerText = currentCard.cat;
+            document.getElementById('c-title').innerText = currentCard.title;
+            document.getElementById('c-sub').innerText = currentCard.sub;
+            document.getElementById('c-action').innerText = currentCard.action;
+            
+            const badge = document.getElementById('badge-area');
+            if (currentCard.impact === 'UP') {
+                badge.innerHTML = `<div class="status-circle"><div class="arrow-icon" style="transform:rotate(180deg)">▼</div><div class="impact-text">ALL 1T</div></div>`;
+            } else if (currentCard.impact === 'DOWN') {
+                badge.innerHTML = `<div class="status-circle"><div class="arrow-icon">▼</div><div class="impact-text">1T</div></div>`;
+            } else {
+                badge.innerHTML = `<div class="status-circle"><svg class="hammer-svg" viewBox="0 0 512 512"><path d="M492.5 124.7L387.3 19.5c-12.5-12.5-32.8-12.5-45.3 0l-45.3 45.3c-12.5 12.5-12.5 32.8 0 45.3l37.8 37.8L32.1 450.4c-9.4 9.4-9.4 24.6 0 33.9L61.7 514c9.4 9.4 24.6 9.4 33.9 0L508 170c12.5-12.5 12.5-32.8 0-45.3z"/></svg></div><div class="status-circle"><div class="arrow-icon">▼</div><div class="impact-text">1T</div></div>`;
+            }
+
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('card-modal').classList.add('show');
+        }
+
+        function applyCardAndClose() {
+            if (currentCard.impact === 'UP') {
+                for(let i=1; i<=6; i++) {
+                    addTokenToGrid(document.getElementById(`grid-${i}`), i);
+                }
+            } else if (currentCard.title === 'Spillage Control Kit') {
+                const filledGrids = Array.from(document.querySelectorAll('.grid')).filter(g => g.children.length > 1);
+                if (filledGrids.length > 0) { moveToDisposal(filledGrids[0].querySelector('.token')); }
+            } else if (currentCard.cat === 'Tools') {
+                document.querySelectorAll('.grid').forEach(g => { if(g.querySelectorAll('.token').length > 0) moveToDisposal(g.querySelector('.token')); });
+            } else if (currentCard.title === 'Overall Efficiency Improvement') {
+                [document.getElementById('grid-6'), document.getElementById('grid-1')].forEach(g => { if(g.querySelectorAll('.token').length > 0) moveToDisposal(g.querySelector('.token')); });
+            } else if (currentCard.title === 'Better Efficiency Machine') {
+                [document.getElementById('grid-1'), document.getElementById('grid-5')].forEach(g => { if(g.querySelectorAll('.token').length > 0) moveToDisposal(g.querySelector('.token')); });
+            }
+            updateCounts();
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('card-modal').classList.remove('show');
+            lockDeck();
+            instructionEl.innerText = "EVENT PROCESSED. START NEXT ROUND.";
+        }
+
+        function addTokenToGrid(grid, gridId) {
+            tokenSeq++;
+            const t = document.createElement('div');
+            t.className = 'token'; t.id = 'token-' + tokenSeq; t.draggable = true;
+            t.ondragstart = (e) => e.dataTransfer.setData("text", e.target.id);
+            t.style.backgroundColor = colors[gridId];
+            grid.appendChild(t);
+            if (grid.querySelectorAll('.token').length > 2) {
+                Array.from(grid.querySelectorAll('.token')).forEach(tk => document.getElementById('storage').appendChild(tk));
+            }
+        }
+
+        function moveToDisposal(token) {
+            if (token) document.getElementById('disposal').appendChild(token);
+        }
+
+        function updateCounts() {
+            document.getElementById('storage-count').innerText = `Total: ${document.getElementById('storage').children.length}`;
+            document.getElementById('disposal-count').innerText = `Saved: ${document.getElementById('disposal').children.length}`;
+        }
+    </script>
+</body>
+</html>
